@@ -1,0 +1,405 @@
+---
+title: "Shelter research"
+subtitle: "Project"
+author: "Mariia Kozlova"
+date: "`r format(Sys.time(), '%e %B %Y')`"
+format: 
+  html:
+    embed-resources: true
+execute: 
+  warning: false
+  messages: false
+  echo: true
+  error: true
+---
+
+## 1. Introduction
+
+#### 1.1 Presentation and Description of the Problem
+
+Stray or unowned animals, especially cats, present a significant challenge in North America. These animals face health and welfare issues, pose public health risks, and impact the environment by attracting predators like coyotes to urban areas. There are no precise numbers for feral or abandoned animals, but estimates suggest that unowned stray cats in Toronto alone range between 100,000 to 220,000.
+
+In North America, the number of dogs entering shelters is decreasing, while the number of unwanted cats is increasing. Approximately 300,000 unowned cats and dogs enter shelters annually in Canada, and about 6 to 8 million in the United States. Of these, roughly 40% to 50% are euthanized, with the majority being cats (table below).
+
+Shelter organizations work towards reuniting lost pets with their owners, rehoming unowned animals, and providing care for vulnerable animals. However, these organizations face challenges such as insufficient funding, inconsistent inspection standards, and overcrowding, which can lead to poor animal welfare. Volunteers and staff often lack training in population management and infectious disease control, further complicating care.
+
+Despite these challenges, shelters aim to provide adequate medical care, enrichment, and socialization to improve the chances of rehoming animals. However, funding shortfalls and high personnel turnover can hinder these efforts. Additionally, shelters must often euthanize animals that are not suitable for adoption, highlighting the need for humane and consistent euthanasia protocols.
+
+To address these issues, long-term solutions include public awareness campaigns about responsible pet ownership, trap-neuter-release programs for stray cats, and subsidized spay-neuter clinics. By understanding the complexities of animal shelter management and ensuring proper training for staff and volunteers, veterinarians and the public can help improve the welfare of shelter animals.
+
+| **Animal** | **Intake per year** | **Euthanized per year** | **Percent of annual intake euthanized** |
+|:--------------|:--------------|:--------------|:--------------------------|
+| Dog        | 39 740              | 7644                    | 19                                      |
+| Cat        | 101 479             | 40 790                  | 40                                      |
+| Other      | 15 809              | 6149                    | 39                                      |
+| Total      | 157 028             | 54 583                  | 35                                      |
+
+*\*Total intake of animals and the numbers euthanized in the establishments that responded to the questionnaire*
+
+## 2. Presentation of Data
+
+#### 2.1 Data Source
+
+```{r}
+intake<- read.csv("~/Library/Mobile Documents/com~apple~CloudDocs/R and Math/archive-2/Austin_Animal_Center_Intakes.csv")
+
+outcomes<-read.csv("~/Library/Mobile Documents/com~apple~CloudDocs/R and Math/archive-2/Austin_Animal_Center_Outcomes.csv")
+```
+
+*Link:* <https://www.kaggle.com/datasets/jackdaoud/animal-shelter-analytics>
+
+#### 2.2 Data Overview
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(utils)
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+
+kable(head(intake, 1), caption = "First Row of Intake Data") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+
+kable(head(outcomes, 1), caption = "First Row of Outcomes Data") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+-   `AnimalID`: Unique identifier for each animal.
+
+-   `Name`: Name of the animal.
+
+-   `DateTime/MonthYear`: Date and time of the intake event.
+
+-   `Date.of.Birth`: Date of birth of the animal
+
+-   `OutcomeType`: Type of outcome (e.g., adoption, transfer, euthanasia).
+
+-   `AnimalType`: Type of animal (e.g., dog, cat).
+
+-   `Found.Location`: Where the animal was found.
+
+-   `Sex`: Sex upon intake/Sex upon outcome.
+
+-   `Age`: Age of the animal at intake.
+
+-   `Age upon Outcome`: Age at the moment of outcome
+
+-   `Breed`: Breed of the animal.
+
+-   `Color`: Color of the animal.
+
+## 3. Aggregation of Data
+
+#### 3.1. Top 10 places for stray animals to be found
+
+```{r}
+summary_table <- intake %>%
+  group_by(Found.Location) %>%
+  summarise(TotalIntake = n()) %>%
+  arrange(desc(TotalIntake)) %>%
+  head(10)
+kable(summary_table, caption = "Top 10 Locations where the most animals were found") %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+-   The top 10 places where animals were found in the Austin area reveal key insights. Austin reported the highest intake of 22,859 animals, followed by Travis with 1,995. Specific addresses like Levander Loop and Frontier Trail indicate frequent stray sightings, potentially representing shelters, animal control centers, or popular stray areas. Neighboring areas also reported significant intake numbers. Overall, focusing efforts on Austin, targeting hotspots, and coordinating regionally are vital to address the stray animal issue effectively.
+
+#### 3.2. Average Adoption Age per Animal Type
+
+```{r}
+AgeToY <- function(age) {
+  age <- tolower(age)
+  if (grepl("year", age)) {
+    as.numeric(sub(" year.*", "", age))
+  } else if (grepl("month", age)) {
+    as.numeric(sub(" month.*", "", age)) / 12
+  } else if (grepl("week", age)) {
+    as.numeric(sub(" week.*", "", age)) / 52
+  } else if (grepl("day", age)) {
+    as.numeric(sub(" day.*", "", age)) / 365
+  } else {
+    NA
+  }
+}
+
+outcomes$Age.upon.Outcome.Years <- sapply(outcomes$Age.upon.Outcome, AgeToY)
+
+averageAge <- outcomes %>%
+  group_by(Animal.Type) %>%
+  summarise(AverageAdoptionAge = mean(Age.upon.Outcome.Years, na.rm = TRUE)) %>%
+  arrange(desc(AverageAdoptionAge))
+
+kable(averageAge, caption = "Average Adoption Age per Animal Type") %>%
+  kable_styling(bootstrap_options = "striped")
+```
+
+-   Dogs tend to be adopted at older ages (around 2.64 years) likely because they enter shelters at older ages. Cats, birds, and other small animals are generally adopted at younger ages (between 1.1 and 1.4 years). Livestock are adopted the youngest, at about 1.14 years. These insights help in understanding the age profiles of animals at adoption, which can inform shelter practices and adoption strategies.
+
+#### 3.3. Monthly Trends in Animal Intake and Adoptions
+
+```{r}
+intake <- read.csv("~/Library/Mobile Documents/com~apple~CloudDocs/R and Math/archive-2/Austin_Animal_Center_Intakes.csv")
+outcomes <- read.csv("~/Library/Mobile Documents/com~apple~CloudDocs/R and Math/archive-2/Austin_Animal_Center_Outcomes.csv")
+
+intake$DateTime <- as.POSIXct(intake$DateTime, format="%m/%d/%Y %I:%M:%S %p")
+intake$MonthYear <- format(intake$DateTime, "%Y-%m")
+
+outcomes$DateTime <- as.POSIXct(outcomes$DateTime, format="%m/%d/%Y %I:%M:%S %p")
+outcomes$MonthYear <- format(outcomes$DateTime, "%Y-%m")
+
+intake_counts <- as.data.frame(table(intake$Animal.Type, intake$MonthYear))
+names(intake_counts) <- c("Animal_Type", "MonthYear", "Intake_Count")
+intake_months <- length(unique(intake$MonthYear))
+intake_counts$Average_Intake <- intake_counts$Intake_Count / intake_months
+
+adoption_counts <- as.data.frame(table(outcomes$Animal.Type[outcomes$Outcome.Type == "Adoption"], outcomes$MonthYear[outcomes$Outcome.Type == "Adoption"]))
+names(adoption_counts) <- c("Animal_Type", "MonthYear", "Adoption_Count")
+outcome_months <- length(unique(outcomes$MonthYear))
+adoption_counts$Average_Adoption <- adoption_counts$Adoption_Count / outcome_months
+
+result <- merge(intake_counts, adoption_counts, by = c("Animal_Type", "MonthYear"), all = TRUE)
+
+result$Adoption_Count[is.na(result$Adoption_Count)] <- 0
+
+total_intake <- aggregate(Average_Intake ~ Animal_Type, data = result, FUN = sum)
+total_adoption <- aggregate(Average_Adoption ~ Animal_Type, data = result, FUN = sum)
+
+total_counts <- merge(total_intake, total_adoption, by = "Animal_Type")
+
+kable(total_counts, caption = "Average Intake and Adoption per Animal Type") %>%
+  kable_styling(bootstrap_options = "striped")
+
+```
+
+-   The analysis of average monthly intake and adoption rates in Austin shows that dogs and cats dominate shelter activities, with the highest intake and adoption rates (dogs: 782.74 intake, 369.13 adoption; cats: 516.17 intake, 237.68 adoption). Birds and other small animals have much lower adoption rates (birds: 6.51 intake, 2.28 adoption; other animals: 73.44 intake, 5.79 adoption), indicating challenges in rehoming them. Livestock have minimal presence in shelters (0.24 intake, 0.09 adoption). These insights help prioritize resources and strategies for different animal types in shelters.
+
+## 4. Exploratory Data Analysis
+
+#### 4.1. Visualisation of the Data
+
+-   Plot 1 Top 20 most popular breeds among dogs in shelters
+
+    ```{r}
+    intake <- read.csv("~/Library/Mobile Documents/com~apple~CloudDocs/R and Math/archive-2/Austin_Animal_Center_Intakes.csv")
+    outcomes <- read.csv("~/Library/Mobile Documents/com~apple~CloudDocs/R and Math/archive-2/Austin_Animal_Center_Outcomes.csv")
+
+    dog_intake <- intake %>% filter(Animal.Type == "Dog")
+    dog_outcome <- outcomes %>% filter(Animal.Type == "Dog")
+
+    breed_count <- dog_intake %>%
+      group_by(Breed) %>%
+      summarise(Count = n()) %>%
+      arrange(desc(Count)) %>%
+      head(20)
+
+    ggplot(breed_count, aes(x = reorder(Breed, -Count), y = Count)) +
+      geom_bar(stat = "identity", fill = "skyblue3") +
+      coord_flip() +
+      labs(title = "Top 20 Most Popular Dog Breeds in Shelters",
+           x = "Breed",
+           y = "Count",
+           caption = "Data Source: Austin Animal Center Intake Data") +
+      theme_minimal()
+    ```
+
+    -   The plot indicates that the majority of dogs in shelters are large breeds or mixes of large breeds, predominantly consisting of military, hunting, or shepherd types. The most common breed is the Pit Bull mix, likely due to the challenges of training and the perception of them as intimidating. The only exceptions are the Yorkshire Terrier Mix and Miniature Poodle Mix, which are challenging to groom and, being popular breeds, are frequently found in shelters. This trend underscores the need for targeted adoption strategies and support for owners of these breeds.
+
+-   Plot 2 Yearly intake and adoption rate for cats and dogs
+
+    ```{r}
+    library(lubridate)
+
+    intake <- read_csv("~/Library/Mobile Documents/com~apple~CloudDocs/R and Math/archive-2/Austin_Animal_Center_Intakes.csv", show_col_types = FALSE)
+    outcomes <- read_csv("~/Library/Mobile Documents/com~apple~CloudDocs/R and Math/archive-2/Austin_Animal_Center_Outcomes.csv", show_col_types = FALSE)
+
+    intake <- intake %>%
+      mutate(DateTime = as.Date(DateTime, format="%m/%d/%Y %I:%M:%S %p"),
+             Year = year(DateTime))
+
+    outcomes <- outcomes %>%
+      mutate(DateTime = as.Date(DateTime, format="%m/%d/%Y %I:%M:%S %p"),
+             Year = year(DateTime))
+
+    yearly_intake <- intake %>%
+      filter(`Animal Type` %in% c("Cat", "Dog")) %>%
+      group_by(Year, `Animal Type`) %>%
+      summarise(Intake_Count = n(), .groups = 'drop')
+
+    yearly_adoptions <- outcomes %>%
+      filter(`Animal Type` %in% c("Cat", "Dog"), `Outcome Type` == "Adoption") %>%
+      group_by(Year, `Animal Type`) %>%
+      summarise(Adoption_Count = n(), .groups = 'drop')
+
+    yearly_data <- full_join(yearly_intake, yearly_adoptions, by = c("Year", "Animal Type"))
+    yearly_data[is.na(yearly_data)] <- 0  # Replace NAs with 0
+
+    yearly_data_long <- yearly_data %>%
+      pivot_longer(cols = c(Intake_Count, Adoption_Count), names_to = "Type", values_to = "Count") %>%
+      mutate(Type = paste(`Animal Type`, Type, sep = "_"))
+
+    ggplot(yearly_data_long, aes(x = Year, y = Count, color = Type, group = Type)) +
+      geom_line(size = 1.5, alpha = 0.6) +
+      labs(title = "Yearly Intake and Adoption Rates for Cats and Dogs",
+           x = "Year",
+           y = "Count") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 0, hjust = 1),
+            plot.title = element_text(hjust = 0.5))
+    ```
+
+    -   Adoption rates correlate with the economic situation and societal stability. People are more likely to adopt pets, especially from shelters, when they feel secure and stable, as shelter pets are seen as needing more time and resources. During economic crises, people are unsure if they can care for pets and prefer not to adopt or buy them. Intake rates also correlate similarly. In stable times, people adopt more animals, sometimes without considering the consequences, leading to more pets being returned to shelters. From around 2013-2015 until 2020, adoption rates increased and fewer animals needed sheltering. The strong economy in America before 2020 boosted adoption rates. However, the pandemic crisis in 2020 caused a dramatic drop in adoptions. The data is incomplete and requires further research.
+
+-   Plot 3 Relation between the time spent in a shelter and adoption rate
+
+    ```{r}
+    intake <- read_csv("~/Library/Mobile Documents/com~apple~CloudDocs/R and Math/archive-2/Austin_Animal_Center_Intakes.csv")
+    outcomes <- read_csv("~/Library/Mobile Documents/com~apple~CloudDocs/R and Math/archive-2/Austin_Animal_Center_Outcomes.csv")
+
+    merged_df <- inner_join(intake, outcomes, by = "Animal ID", suffix = c(".Intake", ".Outcome"))
+
+    merged_df$DateTime.Intake <- as.POSIXct(merged_df$DateTime.Intake, format = "%m/%d/%Y")
+    merged_df$DateTime.Outcome <- as.POSIXct(merged_df$DateTime.Outcome, format = "%m/%d/%Y")
+
+    merged_df$TimeInShelter <- difftime(merged_df$DateTime.Outcome, merged_df$DateTime.Intake, units = "weeks")
+
+    merged_df <- merged_df %>%
+      filter(TimeInShelter >= 0)
+    merged_df <- merged_df %>%
+      rename(OutcomeType = `Outcome Type`)
+    merged_df <- merged_df %>%
+      mutate(OutcomeType = ifelse(OutcomeType == "Adoption", 1, 0))
+
+    plot(merged_df$TimeInShelter, merged_df$OutcomeType, main = "Scatterplot Example",
+         xlab = "Time In Shelter (weeks)", ylab = "Adoption", pch = 19, cex = 0.05)
+    ```
+
+    -   This plot illustrates that the longer an animal stays in the shelter, the lower its chances of being adopted. The critical point is 300 weeks, or approximately six years, after which the likelihood of adoption drops dramatically.
+
+-   Plot 4 Age upon Intake
+
+    ```{r}
+    library("RColorBrewer")
+
+    intake <- read.csv("~/Library/Mobile Documents/com~apple~CloudDocs/R and Math/archive-2/Austin_Animal_Center_Intakes.csv", stringsAsFactors = FALSE)
+
+    convert_age <- function(age) {
+      age <- tolower(age)
+      if (grepl("year", age)) {
+        return(as.numeric(sub(" year.*", "", age)))
+      } else if (grepl("month", age)) {
+        return(as.numeric(sub(" month.*", "", age)) / 12)
+      } else if (grepl("week", age)) {
+        return(as.numeric(sub(" week.*", "", age)) / 52)
+      } else if (grepl("day", age)) {
+        return(as.numeric(sub(" day.*", "", age)) / 365)
+      } else {
+        return(NA)
+      }
+    }
+
+    intake$Age.numeric <- sapply(intake$Age.upon.Intake, convert_age)
+
+    intake$Age.Category <- cut(intake$Age.numeric, 
+                               breaks = c(-Inf, 1, 2, 4, 6, 10, Inf), 
+                               labels = c("0-1", "1-2", "2-4", "4-6", "6-10", "10+"))
+
+    intake <- intake[!is.na(intake$Age.Category), ]
+
+    ggplot(intake, aes(x = Age.Category, fill = Animal.Type)) +
+      geom_histogram(stat = "count", position = position_dodge(preserve = "single")) +
+      scale_fill_manual(values = c("Cat" = "#CAB2D6", "Dog" = "#B2DF8A", "Other" = "#A6CEE3", "Bird" = "#FDBF6F", "Livestock" = "#FB9A99")) +
+      labs(title = "Number of Sheltered by Animal Type and Age upon Intake",
+           x = "Age upon Intake (years)",
+           y = "Number of Animals Sheltered ",
+           fill = "Animal Type") +
+      theme_minimal()
+
+    unique(intake$Animal.Type)
+    ```
+
+    -   The plot reveals that most animals entering shelters are very young. For birds, this can be attributed to people finding baby birds that have fallen out of their nests. For other animals, the 0-1 age range is more than twice as prevalent as any other age group. This trend likely reflects the higher rates of abandonment or surrender of young pets shortly after acquisition, possibly due to the challenges of caring for young animals. Additionally, the data shows that the older the animal, the fewer of them are brought to shelters, indicating a trend where younger animals are more frequently surrendered. Notably, in the 0-1 age category, cats are sheltered slightly more often than dogs, whereas beyond one year of age, dogs are sheltered at significantly higher rates than cats. This pattern suggests a need for increased awareness and support for pet owners, particularly those with young animals, to reduce the rate of shelter intakes.
+
+-   Plot 5 Outcome types
+
+    ```{r}
+    outcomes <- read.csv('~/Library/Mobile Documents/com~apple~CloudDocs/R and Math/archive-2/Austin_Animal_Center_Outcomes.csv')
+
+    outcome_colors <- c("Adoption" = "#A6CEE3",
+                        "Died" = "#EFE77E",
+                        "Disposal" = "#4DAF4A",
+                        "Euthanasia" = "#FB9A99",
+                        "Missing" = "#FDBF6F",
+                        "Relocate" = "#984EA3",
+                        "Return to Owner" = "#B2DF8A",
+                        "Rto-Adopt" = "#8691D5",
+                        "Transfer" = "#CAB2D6")
+
+    pie_chart <- ggplot(outcomes, aes(x = "", fill = Outcome.Type)) +
+      geom_bar(width = 1, stat = "count") +
+      coord_polar(theta = "y") +
+      scale_fill_manual(values = outcome_colors, name = "Outcome Type", labels = names(outcome_colors)) +
+      labs(title = "Pie Chart for All Outcome Types", x = "", y = "") +
+      theme_void()
+
+    print(pie_chart)
+    ```
+
+    -   The pie chart illustrates the various outcomes for sheltered animals. The largest segment, represented in light blue, indicates that the majority of animals are adopted. The second-largest segment, shown in light purple, represents transfers to other facilities or shelters, which suggests a significant number of animals are moved rather than finding permanent homes immediately. The green segment indicates a substantial proportion of animals are returned to their owners. Euthanasia, marked in pink, and deaths, in yellow, while present, occupy relatively smaller segments, indicating fewer animals face these outcomes. Additionally, the chart shows minor segments for outcomes such as disposal, missing, relocation, and return-to-adopt (Rto-Adopt). This data highlights the diverse range of fates for animals in shelters, with adoption being the most common but transfers and returns also playing significant roles.
+
+## 5. Conclusion
+
+#### 5.1. Key Findings
+
+1.  **Adoption Rates and Economic Stability**:
+    -   Adoption rates are closely tied to the economic situation and societal stability. People are more inclined to adopt pets, especially from shelters, when they feel financially secure.
+    -   During economic crises, adoption rates decline as people are unsure of their ability to care for pets.
+2.  **Intake Rates and Economic Conditions**:
+    -   Intake rates also correlate with economic conditions. In stable times, people adopt more animals, sometimes without fully considering the long-term responsibilities, leading to higher returns to shelters.
+    -   From 2013-2015 to 2020, adoption rates increased, and fewer animals needed sheltering, likely due to a strong economy. However, the pandemic in 2020 caused a significant drop in adoption rates.
+3.  **Duration of Stay in Shelters**:
+    -   The longer an animal stays in a shelter, the lower its chances of being adopted, with a critical drop in adoption rates after 300 weeks (approximately six years).
+4.  **Breed and Size of Sheltered Dogs**:
+    -   Most sheltered dogs are large breeds or mixes, including military, hunting, and shepherd types. The Pit Bull mix is particularly common due to training difficulties and perceptions of the breed.
+    -   Yorkshire Terrier and Miniature Poodle mixes are exceptions but are often in shelters due to grooming challenges and their popularity leading to overpopulation.
+5.  **Age of Animals in Shelters**:
+    -   Most animals enter shelters at a very young age, with the 0-1 age range being more than twice as prevalent as any other age group.
+    -   For young animals, cats are sheltered slightly more often than dogs, but beyond one year of age, dogs are sheltered at higher rates.
+6.  **Outcome Types for Sheltered Animals**:
+    -   Adoption is the most common outcome for sheltered animals, followed by transfers to other facilities.
+    -   A significant number of animals are returned to their owners.
+    -   Euthanasia and deaths occur but at lower rates compared to other outcomes.
+
+#### 5.2. Recommendations
+
+1.  **Economic Support and Stability**:
+    -   Provide financial support and resources to potential adopters, especially during economic downturns, to encourage continued adoption rates.
+    -   Implement educational programs about the financial and time commitments of pet ownership to reduce returns to shelters.
+2.  **Targeted Adoption Strategies**:
+    -   Develop targeted adoption campaigns for large breeds and mixes, particularly those with challenging reputations like Pit Bulls.
+    -   Highlight the benefits and dispel myths about these breeds to increase their adoption rates.
+3.  **Support for Young Pet Owners**:
+    -   Offer support and resources for new pet owners, particularly those with young animals, to help reduce the rates of abandonment and surrender.
+    -   Provide training and behavior resources to help owners manage young pets more effectively.
+4.  **Long-term Stay Solutions**:
+    -   Focus on finding homes for long-term shelter residents by creating special adoption events and incentives for these animals.
+    -   Implement enrichment programs within shelters to improve the quality of life for long-term residents and make them more appealing to potential adopters.
+5.  **Comprehensive Data Collection**:
+    -   Improve data collection methods to gather more comprehensive information on shelter animals and their outcomes.
+    -   Use this data to continually assess and refine shelter practices and adoption strategies.
+
+## 6. References
+
+#### 6.1. Dataset Reference
+
+<https://www.kaggle.com/datasets/jackdaoud/animal-shelter-analytics>
+
+#### 6.2. Additional References
+
+Turner P, Berry J, Macdonald S. Animal shelters and animal welfare: raising the bar. Can Vet J. 2012 Aug;53(8):893-6. PMID: 23372200; PMCID: PMC3398531.
+
+<https://www.ncbi.nlm.nih.gov/pmc/articles/PMC3398531/>
+
+Morris KN, Wolf JL, Gies DL. Trends in intake and outcome data for animal shelters in Colorado, 2000 to 2007. J Am Vet Med Assoc. 2011 Feb 1;238(3):329-36. doi: 10.2460/javma.238.3.329. PMID: 21281216.
+
+<https://avmajournals.avma.org/view/journals/javma/238/3/javma.238.3.329.xml>
